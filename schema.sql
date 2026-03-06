@@ -32,18 +32,23 @@ CREATE INDEX IF NOT EXISTS idx_openclaw_agent_messages_conversation
 
 CREATE TABLE IF NOT EXISTS openclaw_chat_messages (
   id                  serial PRIMARY KEY,
-  telegram_message_id bigint NOT NULL,
+  telegram_message_id bigint,         -- NULL for bot outgoing replies
   chat_id             bigint NOT NULL,
-  sender_id           bigint,
-  sender_username     text,
+  sender_id           bigint,         -- NULL for bot
+  sender_username     text,           -- '@vsm_a_ai_agent_bot' for bot replies
   sender_name         text,
   content             text,           -- raw text or '<media:photo>' placeholder
   is_agent_mention    boolean NOT NULL DEFAULT false,
+  is_bot_reply        boolean NOT NULL DEFAULT false,  -- true = outgoing bot message
   agent_session_key   text REFERENCES openclaw_conversations(session_key) ON DELETE SET NULL,
   thread_id           bigint,         -- forum topic id if applicable
-  created_at          timestamptz NOT NULL DEFAULT now(),
-  UNIQUE (chat_id, telegram_message_id)
+  created_at          timestamptz NOT NULL DEFAULT now()
 );
+
+-- Only enforce uniqueness on inbound messages (telegram_message_id NOT NULL)
+CREATE UNIQUE INDEX IF NOT EXISTS uq_chat_messages_inbound
+  ON openclaw_chat_messages(chat_id, telegram_message_id)
+  WHERE telegram_message_id IS NOT NULL;
 
 CREATE INDEX IF NOT EXISTS idx_openclaw_chat_messages_chat
   ON openclaw_chat_messages(chat_id, created_at DESC);

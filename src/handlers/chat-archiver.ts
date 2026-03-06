@@ -14,8 +14,44 @@ function hasMention(text: string): boolean {
 export function registerChatArchiver(
   api: OpenClawPluginApi,
   sql: Sql,
-  opts: { archiveChannels: string[]; downloadMedia: boolean }
+  opts: { archiveChannels: string[]; downloadMedia: boolean; botUsername?: string }
 ) {
+  const botUsername = opts.botUsername ?? "vsm_a_ai_agent_bot";
+
+  // ─── Outgoing: bot replies ─────────────────────────────────────────────────
+  // message_sent: { to, content, success, error? }
+  // ctx:          { channelId, accountId?, conversationId? }
+  api.on("message_sent", async (event, ctx) => {
+    try {
+      if (!opts.archiveChannels.includes(ctx.channelId)) return;
+      if (!event.success) return; // don't log failed sends
+
+      const rawConvId = ctx.conversationId ?? event.to ?? "";
+      const chatIdStr = rawConvId.includes(":") ? rawConvId.split(":").pop()! : rawConvId;
+      if (!chatIdStr) return;
+      const chatId = BigInt(chatIdStr);
+
+      await insertChatMessage(sql, {
+        telegramMessageId: null,   // we don't get the sent message_id from Telegram here
+        chatId,
+        senderId: null,
+        senderUsername: botUsername,
+        senderName: "Alice AI",
+        content: event.content,
+        isAgentMention: false,
+        isBotReply: true,
+        agentSessionKey: null,
+        threadId: null,
+        createdAt: new Date(),
+      });
+
+      api.logger.info(`[chat-archiver] saved bot reply to chat ${chatId}`);
+    } catch (err) {
+      api.logger.error(`[chat-archiver] message_sent error: ${err}`);
+    }
+  });
+
+  // ─── Incoming: all messages ────────────────────────────────────────────────
   // Correct hook name is "message_received" (underscore), not "message:received"
   // event: { from, content, timestamp?, metadata? }
   // ctx:   { channelId, accountId?, conversationId? }

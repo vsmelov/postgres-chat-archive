@@ -54,13 +54,14 @@ export async function insertAgentMessage(
 export async function insertChatMessage(
   sql: Sql,
   params: {
-    telegramMessageId: bigint | number;
+    telegramMessageId?: bigint | number | null;
     chatId: bigint | number;
     senderId?: bigint | number | null;
     senderUsername?: string | null;
     senderName?: string | null;
     content?: string | null;
     isAgentMention: boolean;
+    isBotReply?: boolean;
     agentSessionKey?: string | null;
     threadId?: bigint | number | null;
     createdAt?: Date;
@@ -69,20 +70,21 @@ export async function insertChatMessage(
   const [row] = await sql`
     INSERT INTO openclaw_chat_messages (
       telegram_message_id, chat_id, sender_id, sender_username, sender_name,
-      content, is_agent_mention, agent_session_key, thread_id, created_at
+      content, is_agent_mention, is_bot_reply, agent_session_key, thread_id, created_at
     ) VALUES (
-      ${params.telegramMessageId},
+      ${params.telegramMessageId ?? null},
       ${params.chatId},
       ${params.senderId ?? null},
       ${params.senderUsername ?? null},
       ${params.senderName ?? null},
       ${params.content ?? null},
       ${params.isAgentMention},
+      ${params.isBotReply ?? false},
       ${params.agentSessionKey ?? null},
       ${params.threadId ?? null},
       ${params.createdAt ?? new Date()}
     )
-    ON CONFLICT (chat_id, telegram_message_id) DO NOTHING
+    ON CONFLICT (chat_id, telegram_message_id) WHERE telegram_message_id IS NOT NULL DO NOTHING
     RETURNING id
   `;
   return row as { id: number } | undefined;
