@@ -27,24 +27,30 @@ export function registerChatArchiver(
     "message:received",
     async (event, _ctx) => {
       try {
-        const ctx = (event as any).context ?? {};
-        const channelId: string = ctx.channelId ?? "";
+        // Plugin API: fields may be directly on event OR in event.context
+        const ev = event as any;
+        const channelId: string = ev.channelId ?? ev.context?.channelId ?? ev.channel ?? "";
+
+        api.logger.debug(`[chat-archiver] message:received fired, channelId=${channelId}`);
 
         // Only archive configured channels
         if (!opts.archiveChannels.includes(channelId)) return;
 
-        const content: string = ctx.content ?? "";
-        const meta = ctx.metadata ?? {};
+        const content: string = ev.content ?? ev.context?.content ?? "";
+        const meta = ev.metadata ?? ev.context?.metadata ?? {};
+        const convId = ev.conversationId ?? ev.context?.conversationId ?? ev.groupId ?? ev.context?.groupId;
 
-        const chatId = BigInt(ctx.conversationId ?? ctx.groupId ?? 0);
-        if (!chatId) return; // skip DMs without conversation id
+        const chatId = convId ? BigInt(convId) : 0n;
+        if (!chatId) return; // skip if no conversation id
 
         const senderId = meta.senderId ? BigInt(meta.senderId) : null;
-        const telegramMessageId = ctx.messageId ? BigInt(ctx.messageId) : null;
+        const msgId = ev.messageId ?? ev.context?.messageId;
+        const telegramMessageId = msgId ? BigInt(msgId) : null;
         if (!telegramMessageId) return;
 
         const isAgentMention = detectMention(content, botUsername);
         const threadId = meta.threadId ? BigInt(meta.threadId) : null;
+        const ts = ev.timestamp ?? ev.context?.timestamp;
 
         const row = await insertChatMessage(sql, {
           telegramMessageId,
@@ -54,13 +60,13 @@ export function registerChatArchiver(
           senderName: meta.senderName ?? null,
           content: content || null,
           isAgentMention,
-          agentSessionKey: null, // will be linked later by agent-logger if mention
+          agentSessionKey: null,
           threadId,
-          createdAt: ctx.timestamp ? new Date(ctx.timestamp * 1000) : new Date(),
+          createdAt: ts ? new Date(ts * 1000) : new Date(),
         });
 
         // Queue media for download
-        if (opts.downloadMedia && row) {
+        if (opts.downloadMedia && row && content) {
           const mediaMatches = [...content.matchAll(MEDIA_PLACEHOLDER_RE)];
           for (const match of mediaMatches) {
             const fileType = match[1] ?? "unknown";
@@ -69,8 +75,6 @@ export function registerChatArchiver(
             const mimeType = match[4] ?? null;
 
             if (!fileId) {
-              // No file_id in placeholder — can't download without it
-              // Will need Telegram update object which comes via plugin API if available
               api.logger.debug(`[chat-archiver] media placeholder without file_id: ${match[0]}`);
               continue;
             }
