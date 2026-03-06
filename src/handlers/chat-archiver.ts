@@ -21,15 +21,46 @@ export function registerChatArchiver(
   // ─── Outgoing: bot replies ─────────────────────────────────────────────────
   // message_sent: { to, content, success, error? }
   // ctx:          { channelId, accountId?, conversationId? }
-  let _debugSentDumped = false;
-  api.on("message_sent", async (event, ctx) => {
+  // Try message_sending (fires BEFORE send, confirmed pattern in plugin SDK)
+  // message_sent fires AFTER — try both to see which works
+  let _debugSending = true;
+  api.on("message_sending", async (event, ctx) => {
     try {
-      if (!_debugSentDumped) {
-        api.logger.info(`[chat-archiver] DEBUG message_sent event=${JSON.stringify(event)} ctx=${JSON.stringify(ctx)}`);
-        _debugSentDumped = true;
+      if (_debugSending) {
+        api.logger.info(`[chat-archiver] DEBUG message_sending channelId=${ctx.channelId} to=${(event as any).to}`);
+        _debugSending = false;
       }
       if (!opts.archiveChannels.includes(ctx.channelId)) return;
-      if (!event.success) return; // don't log failed sends
+
+      const rawConvId = ctx.conversationId ?? (event as any).to ?? "";
+      const chatIdStr = rawConvId.includes(":") ? rawConvId.split(":").pop()! : rawConvId;
+      if (!chatIdStr) return;
+      const chatId = BigInt(chatIdStr);
+
+      await insertChatMessage(sql, {
+        telegramMessageId: null,
+        chatId,
+        senderId: null,
+        senderUsername: botUsername,
+        senderName: "Alice AI",
+        content: event.content,
+        isAgentMention: false,
+        isBotReply: true,
+        agentSessionKey: null,
+        threadId: null,
+        createdAt: new Date(),
+      });
+
+      api.logger.info(`[chat-archiver] saved bot reply (message_sending) to chat ${chatId}`);
+    } catch (err) {
+      api.logger.error(`[chat-archiver] message_sending error: ${err}`);
+    }
+  });
+
+  api.on("message_sent", async (event, ctx) => {
+    try {
+      if (!opts.archiveChannels.includes(ctx.channelId)) return;
+      if (!event.success) return;
 
       const rawConvId = ctx.conversationId ?? event.to ?? "";
       const chatIdStr = rawConvId.includes(":") ? rawConvId.split(":").pop()! : rawConvId;

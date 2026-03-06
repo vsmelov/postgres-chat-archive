@@ -69,6 +69,27 @@ const plugin = {
       }
     }
 
+    // ─── Context injection (canonical pattern per memory-lancedb) ────────────
+    // Inject DB schema info as prependContext — agent sees it on every run
+    api.on("before_agent_start", async () => {
+      return {
+        prependContext: [
+          "## Chat Archive Database",
+          `Connection: postgresql://openclaw:***@127.0.0.1:5436/openclaw_archive`,
+          "",
+          "Tables:",
+          "  openclaw_conversations    — agent sessions (session_key, channel)",
+          "  openclaw_agent_messages   — LLM prompts + responses (role: user/assistant)",
+          "  openclaw_chat_messages    — ALL Telegram messages incl. bot replies (is_bot_reply flag)",
+          "  openclaw_media            — downloaded media files (local_path, file_type)",
+          "  openclaw_storage_stats    — media storage monitoring history",
+          "",
+          "Access: sudo docker exec openclaw_archive_postgres psql -U openclaw openclaw_archive",
+        ].join("\n"),
+      };
+    });
+    api.logger.info("[openclaw-chat-archive] Context injection registered");
+
     // ─── Agent logger (PR #19462 feature) ────────────────────────────────────
     if (logAgentSessions) {
       registerAgentLogger(api, sql);
