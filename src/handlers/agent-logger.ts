@@ -1,7 +1,30 @@
 import type { OpenClawPluginApi } from "openclaw/plugin-sdk";
-import { extractTextFromChatContent, stripEnvelope } from "openclaw/plugin-sdk";
 import type { Sql } from "../db.js";
 import { upsertConversation, insertAgentMessage } from "../db.js";
+
+// Extract plain text from Claude-style content (string | ContentBlock[])
+function extractText(content: unknown): string {
+  if (!content) return "";
+  if (typeof content === "string") return content;
+  if (Array.isArray(content)) {
+    return content
+      .filter((b: any) => b?.type === "text" && typeof b?.text === "string")
+      .map((b: any) => b.text)
+      .join("\n")
+      .trim();
+  }
+  return String(content);
+}
+
+// Strip OpenClaw channel envelope headers from prompt
+function stripEnvelope(text: string): string {
+  // Envelope lines look like: [System Message], Conversation info:, etc.
+  return text
+    .replace(/^(\[System Message\].*\n?)/gm, "")
+    .replace(/^(Conversation info.*\n?)/gm, "")
+    .replace(/^(```json[\s\S]*?```\n?)/m, "")
+    .trim();
+}
 
 function deriveChannel(sessionKey: string): string {
   const parts = sessionKey.split(":");
@@ -74,7 +97,7 @@ export function registerAgentLogger(api: OpenClawPluginApi, sql: Sql) {
           lastMessageAt: new Date(),
         });
 
-        const content = extractTextFromChatContent(lastAssistant.content);
+        const content = extractText(lastAssistant.content);
         if (!content) return;
 
         await insertAgentMessage(sql, {

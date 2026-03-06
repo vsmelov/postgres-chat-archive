@@ -12,7 +12,7 @@ services:
       - ./schema.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
     ports:
       # Только localhost — снаружи недоступно, только с этой машины
-      - "127.0.0.1:5432:5432"
+      - "127.0.0.1:5436:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-openclaw} -d ${POSTGRES_DB:-openclaw_archive}"]
       interval: 10s
