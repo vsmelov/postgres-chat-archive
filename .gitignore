@@ -8,6 +8,9 @@ deploy_key.pub
 
 # Runtime data — stay local
 .env
-media/
 logs/
 *.log
+
+# Media files — keep directory structure, ignore content
+media/*
+!media/.gitkeep

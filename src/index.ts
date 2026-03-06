@@ -6,6 +6,10 @@ import { runMediaDownloader } from "./handlers/media-downloader.js";
 import { runStorageMonitor } from "./utils/storage-monitor.js";
 import path from "node:path";
 import os from "node:os";
+import { fileURLToPath } from "node:url";
+
+// Plugin directory = where index.ts lives → go up one level (src/ → plugin root)
+const PLUGIN_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
 interface PluginConfig {
   databaseUrl?: string;
@@ -28,9 +32,10 @@ const plugin = {
     // ─── Config ──────────────────────────────────────────────────────────────
     const databaseUrl =
       cfg.databaseUrl ?? process.env.DATABASE_URL ?? "";
+    // Default: ./media/ relative to plugin root (next to docker-compose.yml)
     const mediaStoragePath =
       cfg.mediaStoragePath ??
-      path.join(os.homedir(), ".openclaw", "workspace", "persist-postgres", "media");
+      path.join(PLUGIN_ROOT, "media");
     const maxStorageGb = cfg.maxStorageGb ?? 50;
     const archiveChannels = cfg.archiveChannels ?? ["telegram"];
     const logAgentSessions = cfg.logAgentSessions !== false;
