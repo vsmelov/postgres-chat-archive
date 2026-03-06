@@ -1,6 +1,6 @@
 import type { OpenClawPluginApi } from "openclaw/plugin-sdk";
 import type { Sql } from "../db.js";
-import { upsertConversation, insertAgentMessage } from "../db.js";
+import { upsertConversation, insertAgentMessage, insertChatMessage } from "../db.js";
 
 // Extract plain text from Claude-style content (string | ContentBlock[])
 function extractText(content: unknown): string {
@@ -67,7 +67,7 @@ export function registerAgentLogger(api: OpenClawPluginApi, sql: Sql) {
     }
   });
 
-  // ─── LLM Output: save assistant response ──────────────────────────────────
+  // ─── LLM Output: save assistant response ─────────────────────────────────
   api.on("llm_output", async (event, ctx) => {
     try {
       const sessionKey = ctx.sessionKey ?? event.sessionId ?? "unknown";
@@ -94,6 +94,29 @@ export function registerAgentLogger(api: OpenClawPluginApi, sql: Sql) {
           usage: event.usage,
         },
       });
+
+      // Also write bot reply to chat_messages so the full chat history is in one table
+      // Parse chat_id from sessionKey: "agent:main:telegram:-5194232540" → -5194232540
+      if (channel === "telegram") {
+        const parts = sessionKey.split(":");
+        const chatIdStr = parts[parts.length - 1];
+        if (chatIdStr && /^-?\d+$/.test(chatIdStr)) {
+          await insertChatMessage(sql, {
+            telegramMessageId: null,
+            chatId: BigInt(chatIdStr),
+            senderId: null,
+            senderUsername: "vsm_a_ai_agent_bot",
+            senderName: "Alice AI",
+            content,
+            isAgentMention: false,
+            isBotReply: true,
+            agentSessionKey: sessionKey,
+            threadId: null,
+            createdAt: new Date(),
+          });
+          api.logger.info(`[agent-logger] bot reply written to chat_messages chat=${chatIdStr}`);
+        }
+      }
 
       api.logger.info(
         `[agent-logger] assistant response saved runId=${event.runId} session=${sessionKey}`
