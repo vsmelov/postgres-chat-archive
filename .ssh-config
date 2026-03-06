@@ -1,0 +1,5 @@
+Host github-persist-postgres
+  HostName github.com
+  User git
+  IdentityFile /home/claw/.openclaw/workspace/persist-postgres/deploy_key
+  IdentitiesOnly yes
