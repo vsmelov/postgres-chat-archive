@@ -19,29 +19,23 @@ export function registerChatArchiver(
   // Correct hook name is "message_received" (underscore), not "message:received"
   // event: { from, content, timestamp?, metadata? }
   // ctx:   { channelId, accountId?, conversationId? }
-  // Debug: dump first message to understand real structure
-  let _debugDumped = false;
-
   api.on(
     "message_received",
     async (event, ctx) => {
       try {
-        if (!_debugDumped) {
-          api.logger.info(`[chat-archiver] DEBUG event=${JSON.stringify(event)} ctx=${JSON.stringify(ctx)}`);
-          _debugDumped = true;
-        }
-
         // Filter by channel
         if (!opts.archiveChannels.includes(ctx.channelId)) return;
 
         const content = event.content ?? "";
         const meta = (event.metadata ?? {}) as Record<string, unknown>;
 
-        // conversationId = Telegram chat_id
-        const chatId = ctx.conversationId ? BigInt(ctx.conversationId) : null;
-        if (!chatId) return;
+        // conversationId has "telegram:CHATID" prefix — strip it
+        const rawConvId = ctx.conversationId ?? "";
+        const chatIdStr = rawConvId.includes(":") ? rawConvId.split(":").pop()! : rawConvId;
+        if (!chatIdStr) return;
+        const chatId = BigInt(chatIdStr);
 
-        // Telegram message_id comes from metadata
+        // messageId is in metadata
         const telegramMessageId = meta.messageId
           ? BigInt(meta.messageId as string | number)
           : null;
@@ -56,6 +50,7 @@ export function registerChatArchiver(
           ? BigInt(meta.threadId as string | number)
           : null;
 
+        // timestamp is already in milliseconds
         const row = await insertChatMessage(sql, {
           telegramMessageId,
           chatId,
@@ -66,7 +61,7 @@ export function registerChatArchiver(
           isAgentMention,
           agentSessionKey: null,
           threadId,
-          createdAt: event.timestamp ? new Date(event.timestamp * 1000) : new Date(),
+          createdAt: event.timestamp ? new Date(event.timestamp) : new Date(),
         });
 
         api.logger.info(
