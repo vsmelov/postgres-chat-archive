@@ -1,0 +1,16 @@
+{
+  "name": "openclaw-chat-archive",
+  "version": "0.1.0",
+  "description": "PostgreSQL chat archive plugin for OpenClaw",
+  "type": "module",
+  "main": "./src/index.ts",
+  "scripts": {
+    "check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "postgres": "^3.4.4"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0"
+  }
+}

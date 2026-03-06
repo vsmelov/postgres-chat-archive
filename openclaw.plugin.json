@@ -1,0 +1,41 @@
+{
+  "id": "openclaw-chat-archive",
+  "name": "Chat Archive (PostgreSQL)",
+  "version": "0.1.0",
+  "description": "Archives all Telegram chat messages + agent sessions to PostgreSQL. Stores media locally.",
+  "main": "./src/index.ts",
+  "configSchema": {
+    "type": "object",
+    "properties": {
+      "databaseUrl": {
+        "type": "string",
+        "description": "PostgreSQL connection string. Falls back to DATABASE_URL env."
+      },
+      "mediaStoragePath": {
+        "type": "string",
+        "description": "Absolute path to local media storage directory."
+      },
+      "maxStorageGb": {
+        "type": "number",
+        "default": 50,
+        "description": "Max media storage in GB. Oldest files deleted when exceeded."
+      },
+      "archiveChannels": {
+        "type": "array",
+        "items": { "type": "string" },
+        "default": ["telegram"],
+        "description": "Which channels to archive. Default: all telegram."
+      },
+      "logAgentSessions": {
+        "type": "boolean",
+        "default": true,
+        "description": "Log agent prompts and responses (PR #19462 feature)."
+      },
+      "downloadMedia": {
+        "type": "boolean",
+        "default": true,
+        "description": "Download media files to local storage."
+      }
+    }
+  }
+}

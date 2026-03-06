@@ -1,6 +1,13 @@
 node_modules/
 dist/
 *.js.map
+
+# Private keys — NEVER commit
 deploy_key
 deploy_key.pub
+
+# Runtime data — stay local
 .env
+media/
+logs/
+*.log
