@@ -21,8 +21,13 @@ export function registerChatArchiver(
   // ─── Outgoing: bot replies ─────────────────────────────────────────────────
   // message_sent: { to, content, success, error? }
   // ctx:          { channelId, accountId?, conversationId? }
+  let _debugSentDumped = false;
   api.on("message_sent", async (event, ctx) => {
     try {
+      if (!_debugSentDumped) {
+        api.logger.info(`[chat-archiver] DEBUG message_sent event=${JSON.stringify(event)} ctx=${JSON.stringify(ctx)}`);
+        _debugSentDumped = true;
+      }
       if (!opts.archiveChannels.includes(ctx.channelId)) return;
       if (!event.success) return; // don't log failed sends
 
