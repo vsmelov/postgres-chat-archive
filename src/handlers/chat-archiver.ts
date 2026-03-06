@@ -32,6 +32,9 @@ export function registerChatArchiver(
     "message_received",
     async (event, ctx) => {
       try {
+        // Log ALL fires to diagnose group filtering
+        api.logger.info(`[chat-archiver] hook fired: channelId=${ctx.channelId} convId=${ctx.conversationId}`);
+
         // Filter by channel
         if (!opts.archiveChannels.includes(ctx.channelId)) return;
 

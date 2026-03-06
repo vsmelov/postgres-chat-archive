@@ -41,7 +41,10 @@ CREATE TABLE IF NOT EXISTS openclaw_chat_messages (
   is_agent_mention    boolean NOT NULL DEFAULT false,
   is_bot_reply        boolean NOT NULL DEFAULT false,  -- true = outgoing bot message
   agent_session_key   text REFERENCES openclaw_conversations(session_key) ON DELETE SET NULL,
-  thread_id           bigint,         -- forum topic id if applicable
+  thread_id           bigint,
+  edited_at           timestamptz,                    -- set when message was edited
+  media_file_id       text,                           -- Telegram file_id for media
+  media_type          text,                           -- 'photo','video','voice','document',...
   created_at          timestamptz NOT NULL DEFAULT now()
 );
 
