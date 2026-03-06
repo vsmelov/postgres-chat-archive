@@ -2,99 +2,95 @@ import type { OpenClawPluginApi } from "openclaw/plugin-sdk";
 import type { Sql } from "../db.js";
 import { insertChatMessage, insertMedia } from "../db.js";
 
-// Matches: <media:photo>, <media:voice>, <media:video>, <media:document>, etc.
 const MEDIA_PLACEHOLDER_RE = /<media:(\w+)(?:\s+file_id="([^"]+)")?(?:\s+size="(\d+)")?(?:\s+mime="([^"]+)")?[^>]*>/g;
 
-function detectMention(content: string | undefined, botUsername: string): boolean {
-  if (!content) return false;
-  const lower = content.toLowerCase();
-  return (
-    lower.includes(`@${botUsername.toLowerCase()}`) ||
-    lower.includes("alice") ||
-    lower.includes("алиса") ||
-    lower.includes("бот")
-  );
+const MENTION_PATTERNS = ["alice", "алиса", "бот", "@vsm_a_ai_agent_bot", "vsm_a_ai_agent_bot"];
+
+function hasMention(text: string): boolean {
+  const lower = text.toLowerCase();
+  return MENTION_PATTERNS.some((p) => lower.includes(p.toLowerCase()));
 }
 
 export function registerChatArchiver(
   api: OpenClawPluginApi,
   sql: Sql,
-  opts: { archiveChannels: string[]; downloadMedia: boolean; botUsername?: string }
+  opts: { archiveChannels: string[]; downloadMedia: boolean }
 ) {
-  const botUsername = opts.botUsername ?? "vsm_a_ai_agent_bot";
+  // Correct hook name is "message_received" (underscore), not "message:received"
+  // event: { from, content, timestamp?, metadata? }
+  // ctx:   { channelId, accountId?, conversationId? }
+  // Debug: dump first message to understand real structure
+  let _debugDumped = false;
 
   api.on(
-    "message:received",
-    async (event, _ctx) => {
+    "message_received",
+    async (event, ctx) => {
       try {
-        // Plugin API: fields may be directly on event OR in event.context
-        const ev = event as any;
-        const channelId: string = ev.channelId ?? ev.context?.channelId ?? ev.channel ?? "";
+        if (!_debugDumped) {
+          api.logger.info(`[chat-archiver] DEBUG event=${JSON.stringify(event)} ctx=${JSON.stringify(ctx)}`);
+          _debugDumped = true;
+        }
 
-        api.logger.debug(`[chat-archiver] message:received fired, channelId=${channelId}`);
+        // Filter by channel
+        if (!opts.archiveChannels.includes(ctx.channelId)) return;
 
-        // Only archive configured channels
-        if (!opts.archiveChannels.includes(channelId)) return;
+        const content = event.content ?? "";
+        const meta = (event.metadata ?? {}) as Record<string, unknown>;
 
-        const content: string = ev.content ?? ev.context?.content ?? "";
-        const meta = ev.metadata ?? ev.context?.metadata ?? {};
-        const convId = ev.conversationId ?? ev.context?.conversationId ?? ev.groupId ?? ev.context?.groupId;
+        // conversationId = Telegram chat_id
+        const chatId = ctx.conversationId ? BigInt(ctx.conversationId) : null;
+        if (!chatId) return;
 
-        const chatId = convId ? BigInt(convId) : 0n;
-        if (!chatId) return; // skip if no conversation id
-
-        const senderId = meta.senderId ? BigInt(meta.senderId) : null;
-        const msgId = ev.messageId ?? ev.context?.messageId;
-        const telegramMessageId = msgId ? BigInt(msgId) : null;
+        // Telegram message_id comes from metadata
+        const telegramMessageId = meta.messageId
+          ? BigInt(meta.messageId as string | number)
+          : null;
         if (!telegramMessageId) return;
 
-        const isAgentMention = detectMention(content, botUsername);
-        const threadId = meta.threadId ? BigInt(meta.threadId) : null;
-        const ts = ev.timestamp ?? ev.context?.timestamp;
+        const senderId = meta.senderId
+          ? BigInt(meta.senderId as string | number)
+          : null;
+
+        const isAgentMention = hasMention(content);
+        const threadId = meta.threadId
+          ? BigInt(meta.threadId as string | number)
+          : null;
 
         const row = await insertChatMessage(sql, {
           telegramMessageId,
           chatId,
           senderId,
-          senderUsername: meta.senderUsername ?? null,
-          senderName: meta.senderName ?? null,
+          senderUsername: (meta.senderUsername as string) ?? null,
+          senderName: (meta.senderName as string) ?? null,
           content: content || null,
           isAgentMention,
           agentSessionKey: null,
           threadId,
-          createdAt: ts ? new Date(ts * 1000) : new Date(),
+          createdAt: event.timestamp ? new Date(event.timestamp * 1000) : new Date(),
         });
+
+        api.logger.info(
+          `[chat-archiver] saved msg ${telegramMessageId} from chat ${chatId} (mention=${isAgentMention})`
+        );
 
         // Queue media for download
         if (opts.downloadMedia && row && content) {
-          const mediaMatches = [...content.matchAll(MEDIA_PLACEHOLDER_RE)];
-          for (const match of mediaMatches) {
+          for (const match of content.matchAll(MEDIA_PLACEHOLDER_RE)) {
             const fileType = match[1] ?? "unknown";
             const fileId = match[2] ?? null;
-            const fileSize = match[3] ? parseInt(match[3]) : null;
-            const mimeType = match[4] ?? null;
-
-            if (!fileId) {
-              api.logger.debug(`[chat-archiver] media placeholder without file_id: ${match[0]}`);
-              continue;
-            }
-
+            if (!fileId) continue;
             await insertMedia(sql, {
               fileId,
               fileType,
-              fileSize,
-              mimeType,
+              fileSize: match[3] ? parseInt(match[3]) : null,
+              mimeType: match[4] ?? null,
               chatId,
               messageId: row.id,
             });
           }
         }
-
-        api.logger.debug(
-          `[chat-archiver] saved message ${telegramMessageId} from chat ${chatId} (mention=${isAgentMention})`
-        );
       } catch (err) {
-        api.logger.error(`[chat-archiver] message:received error: ${err}`);
+        api.logger.error(`[chat-archiver] message_received error: ${err}`);
       }
     },
     { priority: 40 }
