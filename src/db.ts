@@ -39,7 +39,7 @@ export async function insertAgentMessage(
   }
 ) {
   await sql`
-    INSERT INTO openclaw_messages (conversation_id, role, content, metadata)
+    INSERT INTO openclaw_agent_messages (conversation_id, role, content, metadata)
     VALUES (
       ${params.conversationId},
       ${params.role},

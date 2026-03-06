@@ -8,8 +8,8 @@ Media files (photos, videos, voice) stored locally on disk.
 | Event | Where |
 |-------|-------|
 | Every message in any group | `openclaw_chat_messages` |
-| Agent prompt (mention) | `openclaw_messages` (role=user) |
-| Agent response | `openclaw_messages` (role=assistant) |
+| Agent prompt (mention) | `openclaw_agent_messages` (role=user) |
+| Agent response | `openclaw_agent_messages` (role=assistant) |
 | Photos, videos, voice | Local file + `openclaw_media` metadata |
 | Storage stats | `openclaw_storage_stats` |
 
@@ -69,7 +69,7 @@ openclaw gateway restart
 
 ```sql
 openclaw_conversations   -- agent sessions (one per session_key)
-openclaw_messages        -- agent prompts + responses
+openclaw_agent_messages        -- agent prompts + responses
 openclaw_chat_messages   -- ALL group messages (with/without mention)
 openclaw_media           -- media file metadata + local paths
 openclaw_storage_stats   -- storage monitoring history

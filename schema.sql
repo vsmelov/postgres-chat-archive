@@ -14,7 +14,7 @@ CREATE TABLE IF NOT EXISTS openclaw_conversations (
   last_message_at timestamptz NOT NULL DEFAULT now()
 );
 
-CREATE TABLE IF NOT EXISTS openclaw_messages (
+CREATE TABLE IF NOT EXISTS openclaw_agent_messages (
   id              serial PRIMARY KEY,
   conversation_id int NOT NULL REFERENCES openclaw_conversations(id) ON DELETE CASCADE,
   role            text NOT NULL CHECK (role IN ('user', 'assistant', 'system', 'tool')),
@@ -23,8 +23,8 @@ CREATE TABLE IF NOT EXISTS openclaw_messages (
   created_at      timestamptz NOT NULL DEFAULT now()
 );
 
-CREATE INDEX IF NOT EXISTS idx_openclaw_messages_conversation
-  ON openclaw_messages(conversation_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_openclaw_agent_messages_conversation
+  ON openclaw_agent_messages(conversation_id, created_at);
 
 -- ─────────────────────────────────────────────
 -- Chat archiver (ALL messages, incl. no-mention)
